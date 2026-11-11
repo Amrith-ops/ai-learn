@@ -38,12 +38,13 @@ they are not installed yet:
    cannot find related wording by meaning and does not compare all matching
    documents for relevance. This prototype is separate from the current chat
    route.
-4. **RAG building blocks** — `rag/embeddings.py` requests vectors from the
-   local Ollama embedding model; `rag/retrieval.py` calculates cosine similarity
-   and ranks document vectors. These are currently building blocks, not yet
-   connected to file loading or the conversation loop. The next step is to
-   embed document chunks and the query, retrieve the best-matching text, and
-   pass that text to Gemini.
+4. **Semantic retrieval and RAG handoff** — for messages that do not match a
+   local tool or explicit summarize command, `rag/retrieval.py` runs the
+   workflow. `rag/retrieval_tools.py` embeds each text file and the query with
+   Ollama, then ranks documents by cosine similarity. The top document's text
+   and the original question are passed to Gemini as context. Summarize
+   commands still use the earlier direct file-reading path. This prototype
+   embeds whole files on every query; chunking and caching can be learned next.
 
 ## Module responsibilities
 

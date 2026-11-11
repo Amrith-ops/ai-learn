@@ -1,5 +1,6 @@
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from udemy_learn.conversation import run_conversation
 
@@ -24,10 +25,17 @@ class ConversationTests(unittest.TestCase):
         outputs = []
         inputs = iter(["2", "roll dice", "first question", "second question", "quit"])
 
-        run_conversation(client, "test-model", lambda _prompt: next(inputs), outputs.append)
+        with patch(
+            "udemy_learn.conversation.run_retrieval_workflow",
+            return_value=None,
+        ) as retrieval:
+            run_conversation(client, "test-model", lambda _prompt: next(inputs), outputs.append)
 
         requests = client.models.requests
         self.assertEqual(len(requests), 2)
+        self.assertEqual(retrieval.call_count, 2)
+        self.assertEqual(retrieval.call_args_list[0].kwargs["user_query"], "first question")
+        self.assertEqual(retrieval.call_args_list[1].kwargs["user_query"], "second question")
         self.assertEqual(
             requests[0]["contents"],
             [{"role": "user", "parts": [{"text": "first question"}]}],
@@ -47,15 +55,48 @@ class ConversationTests(unittest.TestCase):
             "Provide knowledgeable, patient, and clear explanations.",
         )
 
+    def test_retrieved_document_and_original_question_are_sent_to_gemini(self) -> None:
+        client = FakeClient()
+        inputs = iter(["1", "What is Python used for?", "quit"])
+        retrieved = (
+            "python.txt",
+            "Python is used for automation and data science.",
+            0.82,
+        )
+
+        with patch(
+            "udemy_learn.conversation.run_retrieval_workflow",
+            return_value=retrieved,
+        ) as retrieval:
+            run_conversation(
+                client,
+                "test-model",
+                lambda _prompt: next(inputs),
+                lambda _text: None,
+            )
+
+        retrieval.assert_called_once()
+        sent_prompt = client.models.requests[0]["contents"][0]["parts"][0]["text"]
+        self.assertIn("Python is used for automation and data science.", sent_prompt)
+        self.assertIn("User question: What is Python used for?", sent_prompt)
+        self.assertIn("similarity: 0.820", sent_prompt)
+
     def test_summary_content_is_passed_to_gemini(self) -> None:
         client = FakeClient()
         inputs = iter(["1", "summarize python.txt", "quit"])
 
-        run_conversation(client, "test-model", lambda _prompt: next(inputs), lambda _text: None)
+        with patch("udemy_learn.conversation.run_retrieval_workflow") as retrieval:
+            run_conversation(
+                client,
+                "test-model",
+                lambda _prompt: next(inputs),
+                lambda _text: None,
+            )
 
         prompt = client.models.requests[0]["contents"][0]["parts"][0]["text"]
         self.assertTrue(prompt.startswith("Summarize the following content:\n"))
         self.assertIn("Python is a high-level programming language.", prompt)
+        retrieval.assert_not_called()
 
 
 if __name__ == "__main__":

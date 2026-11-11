@@ -5,6 +5,8 @@ from google import genai
 from udemy_learn.assistant import generate_assistant_reply
 from udemy_learn.config.config import load_config_env
 from udemy_learn.router.tool_router import route_tool_command
+from udemy_learn.rag.retrieval import run_retrieval_workflow
+from udemy_learn.tools.files import DATA_DIRECTORY
 
 DEFAULT_PERSONALITY = (
     "You are an empathetic psychologist and life coach. "
@@ -54,7 +56,24 @@ def run_conversation(
                 continue
             prompt_for_model = tool_response
         else:
-            prompt_for_model = user_input
+            # Semantic retrieval is the next explicit learning step: retrieve
+            # local context first, then provide that text and the original
+            # question to Gemini (which still writes the final response).
+            retrieved_document = run_retrieval_workflow(
+                data_folder=DATA_DIRECTORY,
+                user_query=user_input,
+            )
+            if retrieved_document is None:
+                prompt_for_model = user_input
+            else:
+                file_name, content, similarity = retrieved_document
+                prompt_for_model = (
+                    "Use the retrieved document context to answer the user's "
+                    "question. If the context does not contain the answer, say so.\n\n"
+                    f"Retrieved from {file_name} (similarity: {similarity:.3f}):\n"
+                    f"{content}\n\n"
+                    f"User question: {user_input}"
+                )
 
         messages.append({"role": "user", "content": prompt_for_model})
         output_fn("\nPython  : Sending the conversation to Gemini for a response...")

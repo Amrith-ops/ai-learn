@@ -1,36 +1,27 @@
-import math
-from collections.abc import Mapping, Sequence
+from pathlib import Path
 
+from udemy_learn.rag.retrieval_tools import (
+    rank_documents_by_similarity,
+    load_documents_and_create_embeddings,
+    user_query_embedding_create
+)
 
+"""
+Create a workflow by tying all functions from retrieval.py together.
+    1. Load all documents from the data folder and create embeddings for them.
+    2. Create an embedding for the user query.
+    3. Rank the documents based on their similarity to the user query.
+    4. Return the ranked list of documents with their similarity scores.
+    5. Pick and return the most relevant document content based on the highest similarity score.
+"""
 
+def run_retrieval_workflow(data_folder: str, user_query: str) :
+    # Step 1: Convert user query into an embedding vector
+    query_embedding = user_query_embedding_create(user_query)
+    document_embeddings = load_documents_and_create_embeddings(data_folder)
+    if not document_embeddings:
+        return None
 
-def calculate_cosine_similarity(
-    vec1: Sequence[float], vec2: Sequence[float]
-) -> float:
-    """Measure the angle-based similarity between two embedding vectors."""
-    if len(vec1) != len(vec2):
-        raise ValueError("Embedding vectors must have the same number of dimensions.")
-
-    dot_product = sum(left * right for left, right in zip(vec1, vec2))
-    norm_vec1 = math.sqrt(sum(value * value for value in vec1))
-    norm_vec2 = math.sqrt(sum(value * value for value in vec2))
-    if norm_vec1 == 0 or norm_vec2 == 0:
-        return 0.0
-
-    return dot_product / (norm_vec1 * norm_vec2)
-
-
-def rank_documents_by_similarity(
-    query_embedding: Sequence[float],
-    document_embeddings: Mapping[str, Sequence[float]],
-) -> list[tuple[str, float]]:
-    """Rank document IDs by cosine similarity, most similar first."""
-    similarities = []
-    for doc_id, doc_embedding in document_embeddings.items():
-        similarity = calculate_cosine_similarity(query_embedding, doc_embedding)
-        similarities.append((doc_id, similarity))
-
-    # This reusable ranking stage is ready for the future RAG flow, not yet
-    # connected to the assistant's current exact-word document search.
-    similarities.sort(key=lambda item: item[1], reverse=True)
-    return similarities
+    ranked_documents = rank_documents_by_similarity(query_embedding, document_embeddings)
+    file_name, similarity = ranked_documents[0]
+    return file_name, document_embeddings[file_name]["content"], similarity
