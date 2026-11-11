@@ -1,0 +1,19 @@
+from dataclasses import dataclass
+import os
+
+from dotenv import load_dotenv
+
+
+@dataclass(frozen=True)
+class Settings:
+    api_key: str | None
+    model: str
+
+
+def load_config_env() -> Settings:
+    """Load settings only when the application starts, not when modules are imported."""
+    load_dotenv()
+    return Settings(
+        api_key=os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY"),
+        model=os.getenv("MODEL", "gemini-3.5-flash-lite"),
+    )
