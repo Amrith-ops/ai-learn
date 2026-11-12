@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 class Settings:
     api_key: str | None
     model: str
-    enable_personality: bool = False
+    enable_personality: bool = False,
+    enable_manual_workflow: bool = False,
 
 
 def load_config_env() -> Settings:
@@ -19,4 +20,5 @@ def load_config_env() -> Settings:
         model=os.getenv("MODEL", "gemini-3.5-flash-lite"),
         enable_personality=os.getenv("ENABLE_PERSONALITY", "").strip().casefold()
         in {"1", "true", "yes", "on"},
+        enable_manual_workflow=os.getenv("ENABLE_MANUAL_WORKFLOW", "").strip().casefold()
     )
