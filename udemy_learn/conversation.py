@@ -8,6 +8,7 @@ from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
     get_system_instruction,
     llm_capability_routing,
 )
+from udemy_learn.planner.llm_tool_workflow import run_llm_tool_workflow
 
 
 def run_conversation(
@@ -29,28 +30,42 @@ def run_conversation(
         if user_input.strip().casefold() == "quit":
             output_fn("\nAI  : Goodbye! Have a great day.")
             return
+        if load_config_env().enable_manual_workflow:
+            output_fn("\nPython  : Routing the conversation through the manual workflow...")
+            workflow_result = llm_capability_routing(
+                user_input,
+                system_instruction,
+                output_fn,
+            )
+            if workflow_result.direct_response is not None:
+                output_fn(f"\nPython  : {workflow_result.direct_response}")
+                continue
+            if workflow_result.model_prompt is None:
+                raise RuntimeError("Manual workflow produced neither a model prompt nor a tool response.")
 
-        workflow_result = llm_capability_routing(
-            user_input,
-            system_instruction,
-            output_fn,
-        )
-        if workflow_result.direct_response is not None:
-            output_fn(f"\nPython  : {workflow_result.direct_response}")
-            continue
-        if workflow_result.model_prompt is None:
-            raise RuntimeError("Manual workflow produced neither a model prompt nor a tool response.")
+            messages.append({"role": "user", "content": workflow_result.model_prompt})
+            output_fn("\nPython  : Sending the conversation to Gemini for a response...")
+            ai_reply = generate_assistant_reply(
+                client=client,
+                model=model,
+                messages=messages,
+                system_instruction=workflow_result.system_instruction,
+            )
+            output_fn(f"\nAI : {ai_reply}")
+            messages.append({"role": "assistant", "content": ai_reply})
+        else:
+            output_fn("\nPython  : Routing the conversation through the LLM tool workflow...")
+            tool_result = run_llm_tool_workflow(user_input, client, model)
+            messages.append({"role": "user", "content": tool_result})
+            ai_reply = generate_assistant_reply(
+                client=client,
+                model=model,
+                messages=messages,
+                system_instruction= tool_result,
+            )
+            output_fn(f"\nAI : {ai_reply}")
+            messages.append({"role": "assistant", "content": ai_reply})
 
-        messages.append({"role": "user", "content": workflow_result.model_prompt})
-        output_fn("\nPython  : Sending the conversation to Gemini for a response...")
-        ai_reply = generate_assistant_reply(
-            client=client,
-            model=model,
-            messages=messages,
-            system_instruction=workflow_result.system_instruction,
-        )
-        output_fn(f"\nAI : {ai_reply}")
-        messages.append({"role": "assistant", "content": ai_reply})
 
         output_fn("\n---------- Conversation History ----------")
         for message in messages:

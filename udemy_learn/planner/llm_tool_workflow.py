@@ -21,4 +21,11 @@ def run_llm_tool_workflow(
         client=client,
         model=model,
     )
-    return execute_llm_tool(tool_name)
+    result = execute_llm_tool(tool_name)
+    return f"""
+        The user asked:
+        {user_input}
+        The tool returned:
+        {result}
+        Answer the user naturally.don't add anything from your side in the answer. if tool is none, then answer it from llm model.
+        """
