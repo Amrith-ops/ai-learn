@@ -29,7 +29,7 @@ The MCP server exposes the existing time, dice, and password tools over
 Streamable HTTP. Start it from the repository root:
 
 ```powershell
-.\.venv\Scripts\python.exe -m udemy_learn.mcp.server
+.\.venv\Scripts\python.exe -m udemy_learn.mcp_server.server
 ```
 
 The local server listens at `http://127.0.0.1:8000/mcp`. Configure an
@@ -37,6 +37,31 @@ MCP-compatible agent host with that URL to discover and call the tools. This
 default local endpoint is for development; a server made available beyond the
 local machine should be deployed behind appropriate authentication and
 network-access controls.
+
+## Connect with the MCP example client
+
+With the server running, open a second PowerShell window from the repository
+root. List the tools and their input schemas:
+
+```powershell
+.\.venv\Scripts\python.exe -m udemy_learn.mcp_client.client
+```
+
+Call a tool by name, optionally passing its arguments as JSON:
+
+```powershell
+.\.venv\Scripts\python.exe -m udemy_learn.mcp_client.client --tool roll_dice
+.\.venv\Scripts\python.exe -m udemy_learn.mcp_client.client --% --tool generate_password --arguments {\"length\":16}
+```
+
+Use `--url` to connect to a server at a different MCP endpoint.
+
+For an LLM-driven workflow, reuse `list_server_tools(session)` after initializing
+the MCP session, pass its result through `format_tools_for_prompt(tools)`, then
+send the LLM's selected name and arguments to `call_server_tool(session, name,
+arguments)`. Keep the MCP session open across discovery and invocation so both
+steps use the same connection. The example client displays the prompt-ready
+metadata but does not choose tools with Gemini yet.
 
 ## Current learning stages
 
@@ -70,8 +95,10 @@ network-access controls.
   format.
 - `config/config.py` loads environment-based settings when the app starts.
 - `tools/basics.py` and `tools/files.py` contain local tools.
-- `mcp/server.py` exposes selected utility tools through the MCP Streamable
-  HTTP transport.
+- `mcp_server/server.py` exposes selected utility tools through the MCP
+  Streamable HTTP transport.
+- `mcp_client/client.py` provides reusable MCP discovery, prompt formatting,
+  and tool-calling functions.
 - `rag/` contains the separate embedding and similarity-search experiments.
 
 The module boundaries demonstrate separation of concerns: terminal flow,
