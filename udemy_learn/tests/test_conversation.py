@@ -19,8 +19,8 @@ class FakeClient:
         self.models = FakeModels()
 
 
-class ConversationTests(unittest.TestCase):
-    def test_manual_tools_stay_local_and_chat_sends_full_history(self) -> None:
+class ConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_manual_tools_stay_local_and_chat_sends_full_history(self) -> None:
         client = FakeClient()
         outputs = []
         inputs = iter(["roll dice", "first question", "second question", "quit"])
@@ -34,8 +34,20 @@ class ConversationTests(unittest.TestCase):
                 "udemy_learn.manual_workflow_tool.manual_tool_orcheastrate.run_retrieval_workflow",
                 return_value=None,
             ) as retrieval,
+            patch(
+                "udemy_learn.conversation.load_config_env",
+                return_value=SimpleNamespace(
+                    enable_manual_workflow=True,
+                    tool_discovery_manual=False,
+                ),
+            ),
         ):
-            run_conversation(client, "test-model", lambda _prompt: next(inputs), outputs.append)
+            await run_conversation(
+                client,
+                "test-model",
+                lambda _prompt: next(inputs),
+                outputs.append,
+            )
 
         requests = client.models.requests
         self.assertEqual(len(requests), 2)
@@ -58,7 +70,7 @@ class ConversationTests(unittest.TestCase):
         self.assertEqual(requests[0]["config"].system_instruction, "programmer")
         self.assertIn("You rolled a ", "\n".join(outputs))
 
-    def test_retrieved_document_and_original_question_are_sent_to_gemini(self) -> None:
+    async def test_retrieved_document_and_original_question_are_sent_to_gemini(self) -> None:
         client = FakeClient()
         inputs = iter(["What is Python used for?", "quit"])
         retrieved = (
@@ -76,8 +88,15 @@ class ConversationTests(unittest.TestCase):
                 "udemy_learn.manual_workflow_tool.manual_tool_orcheastrate.run_retrieval_workflow",
                 return_value=retrieved,
             ) as retrieval,
+            patch(
+                "udemy_learn.conversation.load_config_env",
+                return_value=SimpleNamespace(
+                    enable_manual_workflow=True,
+                    tool_discovery_manual=False,
+                ),
+            ),
         ):
-            run_conversation(
+            await run_conversation(
                 client,
                 "test-model",
                 lambda _prompt: next(inputs),
@@ -92,7 +111,7 @@ class ConversationTests(unittest.TestCase):
         self.assertIn("similarity: 0.820", sent_prompt)
         self.assertEqual(request["config"].system_instruction, "helpful")
 
-    def test_summary_content_is_passed_to_gemini(self) -> None:
+    async def test_summary_content_is_passed_to_gemini(self) -> None:
         client = FakeClient()
         inputs = iter(["summarize python.txt", "quit"])
 
@@ -104,8 +123,15 @@ class ConversationTests(unittest.TestCase):
             patch(
                 "udemy_learn.manual_workflow_tool.manual_tool_orcheastrate.run_retrieval_workflow"
             ) as retrieval,
+            patch(
+                "udemy_learn.conversation.load_config_env",
+                return_value=SimpleNamespace(
+                    enable_manual_workflow=True,
+                    tool_discovery_manual=False,
+                ),
+            ),
         ):
-            run_conversation(
+            await run_conversation(
                 client,
                 "test-model",
                 lambda _prompt: next(inputs),
@@ -116,6 +142,85 @@ class ConversationTests(unittest.TestCase):
         self.assertTrue(prompt.startswith("Summarize the following content:\n"))
         self.assertIn("Python is a high-level programming language.", prompt)
         retrieval.assert_not_called()
+
+    async def test_mcp_result_is_given_to_gemini_as_user_context(self) -> None:
+        client = FakeClient()
+        inputs = iter(["roll a die", "quit"])
+
+        with (
+            patch(
+                "udemy_learn.conversation.get_system_instruction",
+                return_value="helpful",
+            ),
+            patch(
+                "udemy_learn.conversation.load_config_env",
+                return_value=SimpleNamespace(
+                    enable_manual_workflow=False,
+                    tool_discovery_manual=False,
+                ),
+            ),
+            patch(
+                "udemy_learn.conversation.run_mcp_workflow",
+                return_value=SimpleNamespace(
+                    tool_name="roll_dice",
+                    content="4",
+                ),
+            ),
+        ):
+            await run_conversation(
+                client,
+                "test-model",
+                lambda _prompt: next(inputs),
+                lambda _text: None,
+            )
+
+        request = client.models.requests[0]
+        self.assertEqual(
+            request["contents"],
+            [
+                {"role": "user", "parts": [{"text": "roll a die"}]},
+                {
+                    "role": "user",
+                    "parts": [{"text": "Tool result from roll_dice:\n4"}],
+                },
+            ],
+        )
+        self.assertEqual(request["config"].system_instruction, "helpful")
+
+    async def test_mcp_no_tool_selection_answers_original_request(self) -> None:
+        client = FakeClient()
+        inputs = iter(["Explain recursion", "quit"])
+
+        with (
+            patch(
+                "udemy_learn.conversation.get_system_instruction",
+                return_value="helpful",
+            ),
+            patch(
+                "udemy_learn.conversation.load_config_env",
+                return_value=SimpleNamespace(
+                    enable_manual_workflow=False,
+                    tool_discovery_manual=False,
+                ),
+            ),
+            patch(
+                "udemy_learn.conversation.run_mcp_workflow",
+                return_value=None,
+            ),
+        ):
+            await run_conversation(
+                client,
+                "test-model",
+                lambda _prompt: next(inputs),
+                lambda _text: None,
+            )
+
+        request = client.models.requests[0]
+        self.assertEqual(
+            request["contents"],
+            [{"role": "user", "parts": [{"text": "Explain recursion"}]}],
+        )
+        self.assertEqual(request["config"].system_instruction, "helpful")
 
 
 if __name__ == "__main__":

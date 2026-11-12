@@ -44,8 +44,9 @@ Keep the server running in one terminal. The agent-side workflow in
 `mcp_client/mcp_workflow.py` connects to its HTTP URL, discovers tools and their
 input schemas, asks Gemini to choose a tool, then calls the selected tool over
 the same MCP session. Call `run_mcp_workflow()` from an async application to
-use this flow. The current learning version returns the MCP result; a later
-step can send that result back to Gemini to generate a natural-language answer.
+use this flow. In the terminal app, the MCP result is sent back to Gemini with
+the original request so it can produce a natural-language answer. If no tool
+is selected, Gemini answers the original request directly.
 
 ## Current learning stages
 
@@ -81,8 +82,9 @@ step can send that result back to Gemini to generate a natural-language answer.
 - `tools/basics.py` and `tools/files.py` contain local tools.
 - `mcp_server/server.py` exposes selected utility tools through the MCP
   Streamable HTTP transport.
-- `mcp_client/client.py` provides reusable MCP discovery, prompt formatting,
-  and tool-calling functions.
+- `mcp_client/client.py` manages the MCP connection, tool discovery, and remote
+  calls; `mcp_client/mcp_workflow.py` asks Gemini to choose a tool and supplies
+  its result to the conversation.
 - `rag/` contains the separate embedding and similarity-search experiments.
 
 The module boundaries demonstrate separation of concerns: terminal flow,

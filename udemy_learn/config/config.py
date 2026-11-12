@@ -8,9 +8,14 @@ from dotenv import load_dotenv
 class Settings:
     api_key: str | None
     model: str
-    enable_personality: bool = False,
-    enable_manual_workflow: bool = False,
+    enable_personality: bool = False
+    enable_manual_workflow: bool = False
     tool_discovery_manual: bool = False
+
+
+def _environment_flag(name: str) -> bool:
+    """Parse a boolean environment setting using the project's accepted values."""
+    return os.getenv(name, "").strip().casefold() in {"1", "true", "yes", "on"}
 
 
 def load_config_env() -> Settings:
@@ -19,7 +24,7 @@ def load_config_env() -> Settings:
     return Settings(
         api_key=os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY"),
         model=os.getenv("MODEL", "gemini-3.5-flash-lite"),
-        enable_personality=os.getenv("ENABLE_PERSONALITY", "").strip().casefold()
-        in {"1", "true", "yes", "on"},
-        enable_manual_workflow=os.getenv("ENABLE_MANUAL_WORKFLOW", "").strip().casefold()
+        enable_personality=_environment_flag("ENABLE_PERSONALITY"),
+        enable_manual_workflow=_environment_flag("ENABLE_MANUAL_WORKFLOW"),
+        tool_discovery_manual=_environment_flag("TOOL_DISCOVERY_MANUAL"),
     )

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 
 from google import genai
@@ -68,15 +69,24 @@ async def run_conversation(
             messages.append({"role": "assistant", "content": ai_reply})
         else:
             output_fn("\nPython: Routing the conversation through the LLM + MCP workflow")
-            tool_result = await run_mcp_workflow(client, user_input,model)
-            messages.append(
-                {"role": "user", "content": tool_result}
-            )
-            ai_reply = generate_assistant_reply(
+            tool_execution = await run_mcp_workflow(client, user_input, model)
+            messages.append({"role": "user", "content": user_input})
+            if tool_execution is not None:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Tool result from {tool_execution.tool_name}:\n"
+                            f"{tool_execution.content}"
+                        ),
+                    }
+                )
+            ai_reply = await asyncio.to_thread(
+                generate_assistant_reply,
                 client=client,
                 model=model,
                 messages=messages,
-                system_instruction= tool_result
+                system_instruction=system_instruction,
             )
 
             output_fn(f"\nAI : {ai_reply}")

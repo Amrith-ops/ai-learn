@@ -18,6 +18,32 @@ class ConfigTests(unittest.TestCase):
             ):
                 self.assertTrue(load_config_env().enable_personality)
 
+    def test_workflow_flags_are_booleans_and_default_to_false(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_MANUAL_WORKFLOW": "",
+                "TOOL_DISCOVERY_MANUAL": "",
+            },
+        ):
+            settings = load_config_env()
+
+        self.assertIs(settings.enable_manual_workflow, False)
+        self.assertIs(settings.tool_discovery_manual, False)
+
+    def test_workflow_flags_parse_false_and_true_values(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "ENABLE_MANUAL_WORKFLOW": "false",
+                "TOOL_DISCOVERY_MANUAL": "yes",
+            },
+        ):
+            settings = load_config_env()
+
+        self.assertIs(settings.enable_manual_workflow, False)
+        self.assertIs(settings.tool_discovery_manual, True)
+
 
 if __name__ == "__main__":
     unittest.main()
