@@ -4,26 +4,10 @@ from google import genai
 
 from udemy_learn.assistant import generate_assistant_reply
 from udemy_learn.config.config import load_config_env
-from udemy_learn.router.tool_router import route_tool_command
-from udemy_learn.rag.retrieval import run_retrieval_workflow
-from udemy_learn.tools.files import DATA_DIRECTORY
-
-DEFAULT_PERSONALITY = (
-    "You are an empathetic psychologist and life coach. "
-    "Provide thoughtful and supportive guidance."
+from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
+    get_system_instruction,
+    llm_capability_routing,
 )
-
-PERSONALITIES = {
-    "1": DEFAULT_PERSONALITY,
-    "2": (
-        "You are an expert Python programmer and software engineer. "
-        "Provide knowledgeable, patient, and clear explanations."
-    ),
-    "3": (
-        "You are a creative chef and culinary expert. "
-        "Provide practical and delicious recipes."
-    ),
-}
 
 
 def run_conversation(
@@ -36,8 +20,7 @@ def run_conversation(
     output_fn("=" * 40)
     output_fn("      My AI Assistant")
     output_fn("=" * 40)
-    choice = input_fn("Choose a personality (1: Psychologist, 2: Programmer, 3: Chef): ")
-    system_instruction = PERSONALITIES.get(choice, DEFAULT_PERSONALITY)
+    system_instruction = get_system_instruction(input_fn, output_fn)
 
     # The conversation owns history so every Gemini turn can include prior exchanges.
     messages: list[dict[str, str]] = []
@@ -47,41 +30,24 @@ def run_conversation(
             output_fn("\nAI  : Goodbye! Have a great day.")
             return
 
-        # This is intentionally manual Python routing; model-selected tool calls
-        # are a later learning step, not part of this version.
-        tool_response = route_tool_command(user_input)
-        if tool_response is not None:
-            if not tool_response.startswith("Summarize the following content:"):
-                output_fn(f"\nPython  : {tool_response}")
-                continue
-            prompt_for_model = tool_response
-        else:
-            # Semantic retrieval is the next explicit learning step: retrieve
-            # local context first, then provide that text and the original
-            # question to Gemini (which still writes the final response).
-            retrieved_document = run_retrieval_workflow(
-                data_folder=DATA_DIRECTORY,
-                user_query=user_input,
-            )
-            if retrieved_document is None:
-                prompt_for_model = user_input
-            else:
-                file_name, content, similarity = retrieved_document
-                prompt_for_model = (
-                    "Use the retrieved document context to answer the user's "
-                    "question. If the context does not contain the answer, say so.\n\n"
-                    f"Retrieved from {file_name} (similarity: {similarity:.3f}):\n"
-                    f"{content}\n\n"
-                    f"User question: {user_input}"
-                )
+        workflow_result = llm_capability_routing(
+            user_input,
+            system_instruction,
+            output_fn,
+        )
+        if workflow_result.direct_response is not None:
+            output_fn(f"\nPython  : {workflow_result.direct_response}")
+            continue
+        if workflow_result.model_prompt is None:
+            raise RuntimeError("Manual workflow produced neither a model prompt nor a tool response.")
 
-        messages.append({"role": "user", "content": prompt_for_model})
+        messages.append({"role": "user", "content": workflow_result.model_prompt})
         output_fn("\nPython  : Sending the conversation to Gemini for a response...")
         ai_reply = generate_assistant_reply(
             client=client,
             model=model,
             messages=messages,
-            system_instruction=system_instruction,
+            system_instruction=workflow_result.system_instruction,
         )
         output_fn(f"\nAI : {ai_reply}")
         messages.append({"role": "assistant", "content": ai_reply})

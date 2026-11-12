@@ -20,19 +20,26 @@ class FakeClient:
 
 
 class ConversationTests(unittest.TestCase):
-    def test_manual_tool_stays_local_and_chat_sends_full_history(self) -> None:
+    def test_manual_tools_stay_local_and_chat_sends_full_history(self) -> None:
         client = FakeClient()
         outputs = []
-        inputs = iter(["2", "roll dice", "first question", "second question", "quit"])
+        inputs = iter(["roll dice", "first question", "second question", "quit"])
 
-        with patch(
-            "udemy_learn.conversation.run_retrieval_workflow",
-            return_value=None,
-        ) as retrieval:
+        with (
+            patch(
+                "udemy_learn.conversation.get_system_instruction",
+                return_value="programmer",
+            ) as get_system_instruction,
+            patch(
+                "udemy_learn.manual_workflow_tool.manual_tool_orcheastrate.run_retrieval_workflow",
+                return_value=None,
+            ) as retrieval,
+        ):
             run_conversation(client, "test-model", lambda _prompt: next(inputs), outputs.append)
 
         requests = client.models.requests
         self.assertEqual(len(requests), 2)
+        get_system_instruction.assert_called_once()
         self.assertEqual(retrieval.call_count, 2)
         self.assertEqual(retrieval.call_args_list[0].kwargs["user_query"], "first question")
         self.assertEqual(retrieval.call_args_list[1].kwargs["user_query"], "second question")
@@ -48,26 +55,28 @@ class ConversationTests(unittest.TestCase):
                 {"role": "user", "parts": [{"text": "second question"}]},
             ],
         )
+        self.assertEqual(requests[0]["config"].system_instruction, "programmer")
         self.assertIn("You rolled a ", "\n".join(outputs))
-        self.assertEqual(
-            requests[0]["config"].system_instruction,
-            "You are an expert Python programmer and software engineer. "
-            "Provide knowledgeable, patient, and clear explanations.",
-        )
 
     def test_retrieved_document_and_original_question_are_sent_to_gemini(self) -> None:
         client = FakeClient()
-        inputs = iter(["1", "What is Python used for?", "quit"])
+        inputs = iter(["What is Python used for?", "quit"])
         retrieved = (
             "python.txt",
             "Python is used for automation and data science.",
             0.82,
         )
 
-        with patch(
-            "udemy_learn.conversation.run_retrieval_workflow",
-            return_value=retrieved,
-        ) as retrieval:
+        with (
+            patch(
+                "udemy_learn.conversation.get_system_instruction",
+                return_value="helpful",
+            ),
+            patch(
+                "udemy_learn.manual_workflow_tool.manual_tool_orcheastrate.run_retrieval_workflow",
+                return_value=retrieved,
+            ) as retrieval,
+        ):
             run_conversation(
                 client,
                 "test-model",
@@ -76,16 +85,26 @@ class ConversationTests(unittest.TestCase):
             )
 
         retrieval.assert_called_once()
-        sent_prompt = client.models.requests[0]["contents"][0]["parts"][0]["text"]
+        request = client.models.requests[0]
+        sent_prompt = request["contents"][0]["parts"][0]["text"]
         self.assertIn("Python is used for automation and data science.", sent_prompt)
         self.assertIn("User question: What is Python used for?", sent_prompt)
         self.assertIn("similarity: 0.820", sent_prompt)
+        self.assertEqual(request["config"].system_instruction, "helpful")
 
     def test_summary_content_is_passed_to_gemini(self) -> None:
         client = FakeClient()
-        inputs = iter(["1", "summarize python.txt", "quit"])
+        inputs = iter(["summarize python.txt", "quit"])
 
-        with patch("udemy_learn.conversation.run_retrieval_workflow") as retrieval:
+        with (
+            patch(
+                "udemy_learn.conversation.get_system_instruction",
+                return_value="helpful",
+            ),
+            patch(
+                "udemy_learn.manual_workflow_tool.manual_tool_orcheastrate.run_retrieval_workflow"
+            ) as retrieval,
+        ):
             run_conversation(
                 client,
                 "test-model",
