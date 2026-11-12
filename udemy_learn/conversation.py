@@ -9,9 +9,10 @@ from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
     llm_capability_routing,
 )
 from udemy_learn.planner.llm_tool_workflow import run_llm_tool_workflow
+from udemy_learn.mcp_client.mcp_workflow import run_mcp_workflow
 
 
-def run_conversation(
+async def run_conversation(
     client: genai.Client,
     model: str,
     input_fn: Callable[[str], str] = input,
@@ -53,8 +54,8 @@ def run_conversation(
             )
             output_fn(f"\nAI : {ai_reply}")
             messages.append({"role": "assistant", "content": ai_reply})
-        else:
-            output_fn("\nPython  : Routing the conversation through the LLM tool workflow...")
+        elif load_config_env().tool_discovery_manual:
+            output_fn("\nPython  : Routing the conversation through the LLM deciding which tool to use workflow...")
             tool_result = run_llm_tool_workflow(user_input, client, model)
             messages.append({"role": "user", "content": tool_result})
             ai_reply = generate_assistant_reply(
@@ -65,6 +66,21 @@ def run_conversation(
             )
             output_fn(f"\nAI : {ai_reply}")
             messages.append({"role": "assistant", "content": ai_reply})
+        else:
+            output_fn("\nPython: Routing the conversation through the LLM + MCP workflow")
+            tool_result = await run_mcp_workflow(client, user_input,model)
+            messages.append(
+                {"role": "user", "content": tool_result}
+            )
+            ai_reply = generate_assistant_reply(
+                client=client,
+                model=model,
+                messages=messages,
+                system_instruction= tool_result
+            )
+
+            output_fn(f"\nAI : {ai_reply}")
+            messages.append({"role": "assistant", "content": ai_reply})
 
 
         output_fn("\n---------- Conversation History ----------")
@@ -73,11 +89,11 @@ def run_conversation(
         output_fn("------------------------------------------")
 
 
-def main() -> None:
+async def main() -> None:
     """Load runtime configuration and start the terminal conversation."""
     settings = load_config_env()
     if not settings.api_key:
         raise RuntimeError("Set GEMINI_API_KEY in your environment or .env file.")
 
     client = genai.Client(api_key=settings.api_key)
-    run_conversation(client=client, model=settings.model)
+    await run_conversation(client=client, model=settings.model)

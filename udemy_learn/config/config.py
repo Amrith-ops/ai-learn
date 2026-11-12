@@ -10,6 +10,7 @@ class Settings:
     model: str
     enable_personality: bool = False,
     enable_manual_workflow: bool = False,
+    tool_discovery_manual: bool = False
 
 
 def load_config_env() -> Settings:

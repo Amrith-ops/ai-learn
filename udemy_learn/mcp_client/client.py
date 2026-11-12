@@ -1,51 +1,43 @@
-from fastmcp import Client
+"""Client helpers for connecting to the learning tools MCP server."""
 
-async def connect():
-    """
-    Connect to the MCP Server.
-    """
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
 
-    client = Client("server.py")
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+from mcp.types import CallToolResult, Tool
 
-    await client.__aenter__()
-    print("Connected to MCP Server.")
-    return client
+DEFAULT_SERVER_URL = "http://127.0.0.1:8000/mcp"
 
-async def disconnect(client):
-    """
-    Close the MCP connection.
-    """
 
-    await client.__aexit__(
-        None,
-        None,
-        None
-    )
-    print("Disconnected from MCP Server.")
+@asynccontextmanager
+async def connect(
+    server_url: str = DEFAULT_SERVER_URL,
+) -> AsyncIterator[ClientSession]:
+    """Connect to the HTTP MCP server and close resources when done."""
+    async with streamablehttp_client(server_url) as (
+        read_stream,
+        write_stream,
+        _,
+    ):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            yield session
 
-async def discover_tools(client):
-    """
-    Retrieve all tools from the server.
-    """
 
-    tools = await client.list_tools()
-    return tools
+async def discover_tools(session: ClientSession) -> list[Tool]:
+    """Return tools advertised by an initialized MCP session."""
+    response = await session.list_tools()
+    return response.tools
+
 
 async def execute_tool(
-        client,
-        tool_name,
-        arguments=None
-):
-    """
-    Execute a tool.
-    """
-
+    session: ClientSession,
+    tool_name: str,
+    arguments: dict[str, Any] | None = None,
+) -> CallToolResult:
+    """Call a remote tool by name and return its MCP result."""
     if arguments is None:
         arguments = {}
-
-    result = await client.call_tool(
-        tool_name,
-        **arguments
-    )
-    return result
-
+    return await session.call_tool(tool_name, arguments)

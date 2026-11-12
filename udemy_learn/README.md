@@ -38,30 +38,14 @@ default local endpoint is for development; a server made available beyond the
 local machine should be deployed behind appropriate authentication and
 network-access controls.
 
-## Connect with the MCP example client
+## Use the MCP server from the agent
 
-With the server running, open a second PowerShell window from the repository
-root. List the tools and their input schemas:
-
-```powershell
-.\.venv\Scripts\python.exe -m udemy_learn.mcp_client.client
-```
-
-Call a tool by name, optionally passing its arguments as JSON:
-
-```powershell
-.\.venv\Scripts\python.exe -m udemy_learn.mcp_client.client --tool roll_dice
-.\.venv\Scripts\python.exe -m udemy_learn.mcp_client.client --% --tool generate_password --arguments {\"length\":16}
-```
-
-Use `--url` to connect to a server at a different MCP endpoint.
-
-For an LLM-driven workflow, reuse `list_server_tools(session)` after initializing
-the MCP session, pass its result through `format_tools_for_prompt(tools)`, then
-send the LLM's selected name and arguments to `call_server_tool(session, name,
-arguments)`. Keep the MCP session open across discovery and invocation so both
-steps use the same connection. The example client displays the prompt-ready
-metadata but does not choose tools with Gemini yet.
+Keep the server running in one terminal. The agent-side workflow in
+`mcp_client/mcp_workflow.py` connects to its HTTP URL, discovers tools and their
+input schemas, asks Gemini to choose a tool, then calls the selected tool over
+the same MCP session. Call `run_mcp_workflow()` from an async application to
+use this flow. The current learning version returns the MCP result; a later
+step can send that result back to Gemini to generate a natural-language answer.
 
 ## Current learning stages
 

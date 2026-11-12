@@ -1,4 +1,12 @@
-from udemy_learn.mcp_client.client import connect
+"""Use Gemini to choose a tool discovered from the MCP server."""
+
+import asyncio
+from collections.abc import Sequence
+
+from google.genai import Client
+from mcp.types import CallToolResult
+from udemy_learn.mcp_client.client import connect,discover_tools,execute_tool
+
 from udemy_learn.assistant import generate_assistant_reply
 from google.genai import Client
 
@@ -26,23 +34,32 @@ async def run_mcp_workflow(
     client: Client,
     user_input: str,
     model: str,
-):
-    # uses the MCP client to get the list of tools available from the MCP server
-    mcp_client = await connect()
-    tools = await mcp_client.list_tools()
-    # Build prompt using the fetched tool list, this list of tools in prompt is sent to LLM along with user input
-    tool_prompt_description = build_tool_descriptions(tools)
-    response = generate_assistant_reply(
-        client,
-        model, 
-        messages= [{"role":"user","content":f"{user_input}"}],
-        system_instruction = f"""
-                You are an AI planner that selects tool based on the user input.
-                You have access to following tools:
-                {tool_prompt_description}
-                Return the response with exact tool name 
-                If there are no tools match then return None
+) -> CallToolResult | None:
+    """Discover remote tools, ask Gemini to select one, and call it."""
+    async with connect() as mcp_session:
+        tools = await discover_tools(mcp_session)
+        tool_prompt_description = build_tool_descriptions(tools)
+        response = await asyncio.to_thread(
+            generate_assistant_reply,
+            client=client,
+            model=model,
+            messages=[{"role": "user", "content": user_input}],
+            system_instruction=f"""You select a tool for the user's request.
+Available tools and their input schemas:
+{tool_prompt_description}
+
+Return only the exact tool name. If no tool applies, return only None.""",
+        )
+        tool_name = response.strip()
+        if tool_name.casefold() == "none":
+            return None
+
+        available_names = {tool.name for tool in tools}
+        if tool_name not in available_names:
+            raise ValueError(f"LLM selected an unknown MCP tool: {tool_name!r}")
+        tool_response = await execute_tool(mcp_session, tool_name)
+        return f"""
+                The user asked : {user_input}
+                The tool returned : {tool_response}
+                 Answer the user naturally.don't add anything from your side in the answer. if tool is none, then answer it from llm model.
                 """
-    )
-
-
