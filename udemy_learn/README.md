@@ -20,8 +20,23 @@ Install the application dependencies in the selected Python environment if
 they are not installed yet:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install google-genai python-dotenv
+.\.venv\Scripts\python.exe -m pip install google-genai python-dotenv "mcp<2"
 ```
+
+## Run the MCP tool server
+
+The MCP server exposes the existing time, dice, and password tools over
+Streamable HTTP. Start it from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m udemy_learn.mcp.server
+```
+
+The local server listens at `http://127.0.0.1:8000/mcp`. Configure an
+MCP-compatible agent host with that URL to discover and call the tools. This
+default local endpoint is for development; a server made available beyond the
+local machine should be deployed behind appropriate authentication and
+network-access controls.
 
 ## Current learning stages
 
@@ -55,6 +70,8 @@ they are not installed yet:
   format.
 - `config/config.py` loads environment-based settings when the app starts.
 - `tools/basics.py` and `tools/files.py` contain local tools.
+- `mcp/server.py` exposes selected utility tools through the MCP Streamable
+  HTTP transport.
 - `rag/` contains the separate embedding and similarity-search experiments.
 
 The module boundaries demonstrate separation of concerns: terminal flow,
