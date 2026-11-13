@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from udemy_learn.config.config import load_config_env
 from udemy_learn.router.tool_router import route_tool_command
-from udemy_learn.rag.retrieval import run_retrieval_workflow
+from udemy_learn.rag.retrieval_workflow import run_retrieval_workflow
 from udemy_learn.tools.files import DATA_DIRECTORY
 
 """

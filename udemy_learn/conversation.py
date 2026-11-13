@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 from google import genai
 
+from udemy_learn.agent_loop.agent_loop_workflow import agent_loop_run_workflow
 from udemy_learn.assistant import generate_assistant_reply
 from udemy_learn.config.config import load_config_env
 from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
@@ -11,6 +12,7 @@ from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
 )
 from udemy_learn.planner.llm_tool_workflow import run_llm_tool_workflow
 from udemy_learn.mcp_client.mcp_workflow import run_mcp_workflow
+from udemy_learn.request_classifier import classify_request
 
 
 async def run_conversation(
@@ -68,30 +70,53 @@ async def run_conversation(
             output_fn(f"\nAI : {ai_reply}")
             messages.append({"role": "assistant", "content": ai_reply})
         else:
-            output_fn("\nPython: Routing the conversation through the LLM + MCP workflow")
-            tool_execution = await run_mcp_workflow(client, user_input, model)
-            messages.append({"role": "user", "content": user_input})
-            if tool_execution is not None:
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Tool result from {tool_execution.tool_name}:\n"
-                            f"{tool_execution.content}"
-                        ),
-                    }
-                )
-            ai_reply = await asyncio.to_thread(
-                generate_assistant_reply,
-                client=client,
-                model=model,
-                messages=messages,
-                system_instruction=system_instruction,
+            request_type = await asyncio.to_thread(
+                classify_request,
+                user_input,
+                client,
+                model,
             )
+            messages.append({"role": "user", "content": user_input})
+            if request_type == "multi-step":
+                output_fn("\nPython: Routing the conversation through the agent loop")
+                agent_state = await agent_loop_run_workflow(user_input, client, model)
+                for observation in agent_state.observations:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Agent step {observation['step']} "
+                                f"({observation['action']}):\n"
+                                f"{observation['observation']}"
+                            ),
+                        }
+                    )
+                if agent_state.final_answer is None:
+                    raise RuntimeError("Agent loop completed without a final answer.")
+                ai_reply = agent_state.final_answer
+            else:
+                output_fn("\nPython: Routing the conversation through the LLM + MCP workflow")
+                tool_execution = await run_mcp_workflow(client, user_input, model)
+                if tool_execution is not None:
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Tool result from {tool_execution.tool_name}:\n"
+                                f"{tool_execution.content}"
+                            ),
+                        }
+                    )
+                ai_reply = await asyncio.to_thread(
+                    generate_assistant_reply,
+                    client=client,
+                    model=model,
+                    messages=messages,
+                    system_instruction=system_instruction,
+                )
 
             output_fn(f"\nAI : {ai_reply}")
             messages.append({"role": "assistant", "content": ai_reply})
-
 
         output_fn("\n---------- Conversation History ----------")
         for message in messages:

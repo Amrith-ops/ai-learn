@@ -70,10 +70,11 @@ is selected, Gemini answers the original request directly.
    and the original question are passed to Gemini as context. Summarize
    commands still use the earlier direct file-reading path. This prototype
    embeds whole files on every query; chunking and caching can be learned next.
-5. **Agent state maintenance** — `agent_state/state.py` tracks a request's
-   current step, selected actions, tool observations, step limit, and final
-   answer. Its transition helpers keep this state consistent as an agent
-   workflow progresses; the current MCP workflow still performs one tool call.
+5. **Request classification and agent loop** — `request_classifier.py` asks
+   Gemini whether a request needs a single tool step or multiple steps.
+   `conversation.py` routes single-step requests through the MCP workflow and
+   multi-step requests through `agent_loop/agent_loop_workflow.py`, which
+   tracks actions and observations until the planner returns a final answer.
 
 ## Module responsibilities
 
@@ -89,8 +90,9 @@ is selected, Gemini answers the original request directly.
 - `mcp_client/client.py` manages the MCP connection, tool discovery, and remote
   calls; `mcp_client/mcp_workflow.py` asks Gemini to choose a tool and supplies
   its result to the conversation.
-- `agent_state/state.py` maintains the per-request state needed to track a
-  multi-step agent run.
+- `request_classifier.py` classifies requests as single-step or multi-step.
+- `agent_loop/` contains the planner, MCP tool execution, and state management
+  for multi-step requests.
 - `rag/` contains the separate embedding and similarity-search experiments.
 
 The module boundaries demonstrate separation of concerns: terminal flow,

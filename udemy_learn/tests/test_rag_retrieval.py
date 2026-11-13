@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from udemy_learn.rag.retrieval import rank_documents_by_similarity, run_retrieval_workflow
+from udemy_learn.rag.retrieval_workflow import rank_documents_by_similarity, run_retrieval_workflow
 from udemy_learn.rag.retrieval_tools import calculate_cosine_similarity
 
 

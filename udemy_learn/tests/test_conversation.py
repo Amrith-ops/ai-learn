@@ -1,6 +1,6 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from udemy_learn.conversation import run_conversation
 
@@ -160,7 +160,12 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
+                "udemy_learn.conversation.classify_request",
+                return_value="single-step",
+            ),
+            patch(
                 "udemy_learn.conversation.run_mcp_workflow",
+                new_callable=AsyncMock,
                 return_value=SimpleNamespace(
                     tool_name="roll_dice",
                     content="4",
@@ -204,7 +209,12 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
             patch(
+                "udemy_learn.conversation.classify_request",
+                return_value="single-step",
+            ),
+            patch(
                 "udemy_learn.conversation.run_mcp_workflow",
+                new_callable=AsyncMock,
                 return_value=None,
             ),
         ):
@@ -221,6 +231,72 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             [{"role": "user", "parts": [{"text": "Explain recursion"}]}],
         )
         self.assertEqual(request["config"].system_instruction, "helpful")
+
+    async def test_multi_step_request_runs_agent_loop(self) -> None:
+        client = FakeClient()
+        inputs = iter(["Get the time, then roll a die", "quit"])
+        agent_state = SimpleNamespace(
+            observations=[
+                {
+                    "step": 1,
+                    "action": "get_current_time({})",
+                    "observation": "10:00",
+                },
+                {
+                    "step": 2,
+                    "action": "roll_dice({})",
+                    "observation": "4",
+                },
+            ],
+            final_answer="It is 10:00 and the die roll is 4.",
+        )
+
+        with (
+            patch(
+                "udemy_learn.conversation.get_system_instruction",
+                return_value="helpful",
+            ),
+            patch(
+                "udemy_learn.conversation.load_config_env",
+                return_value=SimpleNamespace(
+                    enable_manual_workflow=False,
+                    tool_discovery_manual=False,
+                ),
+            ),
+            patch(
+                "udemy_learn.conversation.classify_request",
+                return_value="multi-step",
+            ),
+            patch(
+                "udemy_learn.conversation.agent_loop_run_workflow",
+                new_callable=AsyncMock,
+                return_value=agent_state,
+            ) as agent_loop,
+            patch(
+                "udemy_learn.conversation.run_mcp_workflow",
+                new_callable=AsyncMock,
+            ) as mcp_workflow,
+        ):
+            outputs = []
+            await run_conversation(
+                client,
+                "test-model",
+                lambda _prompt: next(inputs),
+                outputs.append,
+            )
+
+        agent_loop.assert_awaited_once_with(
+            "Get the time, then roll a die",
+            client,
+            "test-model",
+        )
+        mcp_workflow.assert_not_awaited()
+        self.assertTrue(
+            any("It is 10:00 and the die roll is 4." in output for output in outputs)
+        )
+        history = "\n".join(outputs)
+        self.assertIn("get_current_time({})", history)
+        self.assertIn("roll_dice({})", history)
 
 
 if __name__ == "__main__":
