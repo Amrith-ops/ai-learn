@@ -22,11 +22,14 @@ class AgentState:
             raise ValueError("max_steps must be greater than zero.")
         if not 0 <= self.current_step <= self.max_steps:
             raise ValueError("current_step must be between zero and max_steps.")
+        print(f"Agent state initialized for request: {self.user_input}")
 
 
 def create_agent_state(user_input: str, max_steps: int = 5) -> AgentState:
     """Create fresh state for a user request."""
-    return AgentState(user_input=user_input, max_steps=max_steps)
+    state = AgentState(user_input=user_input, max_steps=max_steps)
+    print(f"Created agent state with a maximum of {max_steps} steps.")
+    return state
 
 
 def update_current_step(state: AgentState) -> int:
@@ -39,6 +42,7 @@ def update_current_step(state: AgentState) -> int:
         raise RuntimeError("Record the current step's observation before advancing.")
 
     state.current_step += 1
+    print(f"Agent advanced to step {state.current_step}/{state.max_steps}.")
     return state.current_step
 
 
@@ -54,6 +58,7 @@ def update_action_taken(state: AgentState, action: str) -> None:
         raise RuntimeError("An action is already recorded for the current step.")
 
     state.actions.append(action)
+    print(f"Action recorded for step {state.current_step}: {action}")
 
 
 def update_observations(state: AgentState, action:str,observation: str) -> None:
@@ -74,6 +79,7 @@ def update_observations(state: AgentState, action:str,observation: str) -> None:
             "observation": observation,
         }
     )
+    print(f"Observation recorded for step {state.current_step}: {observation}")
 
 
 def finish_agent_state(state: AgentState, final_answer: str) -> None:
@@ -87,3 +93,4 @@ def finish_agent_state(state: AgentState, final_answer: str) -> None:
 
     state.final_answer = final_answer
     state.finished = True
+    print(f"Agent run finished with answer: {final_answer}")

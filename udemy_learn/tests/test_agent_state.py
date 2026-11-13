@@ -15,7 +15,7 @@ class AgentStateTests(unittest.TestCase):
 
         self.assertEqual(update_current_step(state), 1)
         update_action_taken(state, "get_weather")
-        update_observations(state, "Sunny, 21 C")
+        update_observations(state, "get_weather", "Sunny, 21 C")
 
         self.assertEqual(state.current_step, 1)
         self.assertEqual(state.actions, ["get_weather"])
@@ -58,7 +58,7 @@ class AgentStateTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "observation before finishing"):
             finish_agent_state(state, "Done.")
 
-        update_observations(state, "first result")
+        update_observations(state, "first action", "first result")
         self.assertEqual(update_current_step(state), 2)
 
     def test_action_and_observation_must_follow_current_step(self) -> None:
@@ -69,7 +69,7 @@ class AgentStateTests(unittest.TestCase):
 
         update_current_step(state)
         with self.assertRaisesRegex(RuntimeError, "Record an action"):
-            update_observations(state, "result")
+            update_observations(state, "action", "result")
 
     def test_finishing_stores_answer_and_prevents_further_updates(self) -> None:
         state = create_agent_state("Do the task")
