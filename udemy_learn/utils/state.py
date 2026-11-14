@@ -13,8 +13,8 @@ class AgentState:
     actions: list[str] = field(default_factory=list)
     observations: list[dict[str, str | int]] = field(default_factory=list)
     tasks: list[dict[str, str]] = field(default_factory=list)
-    current_task: str
-    results: list[str]
+    current_task: str = ""
+    results: list[str] = field(default_factory=list)
     finished: bool = False
     final_answer: str | None = None
 

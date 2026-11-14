@@ -4,7 +4,7 @@ from collections.abc import Callable
 from google import genai
 
 from udemy_learn.agent_loop.agent_loop_workflow import agent_loop_run_workflow
-from udemy_learn.assistant import generate_assistant_reply
+from udemy_learn.utils.assistant import generate_assistant_reply
 from udemy_learn.config.config import load_config_env
 from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
     get_system_instruction,

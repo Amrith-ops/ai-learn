@@ -3,7 +3,7 @@
 import asyncio
 from dataclasses import dataclass
 from google.genai import Client
-from udemy_learn.assistant import generate_assistant_reply
+from udemy_learn.utils.assistant import generate_assistant_reply
 from udemy_learn.mcp_client.client import connect, discover_tools, execute_tool
 from udemy_learn.utils.list_of_tools_prompt import build_tool_descriptions
 from udemy_learn.utils.tool_selection_parser import parse_tool_selection, format_tool_result

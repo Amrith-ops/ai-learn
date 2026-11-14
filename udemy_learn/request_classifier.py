@@ -4,7 +4,7 @@ from typing import Literal
 
 from google.genai import Client
 
-from udemy_learn.assistant import generate_assistant_reply
+from udemy_learn.utils.assistant import generate_assistant_reply
 
 RequestType = Literal["single-step", "multi-step"]
 
