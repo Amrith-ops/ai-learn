@@ -12,6 +12,9 @@ class AgentState:
     max_steps: int = 5
     actions: list[str] = field(default_factory=list)
     observations: list[dict[str, str | int]] = field(default_factory=list)
+    tasks: list[dict[str, str]] = field(default_factory=list)
+    current_task: str
+    results: list[str]
     finished: bool = False
     final_answer: str | None = None
 
@@ -80,6 +83,32 @@ def update_observations(state: AgentState, action:str,observation: str) -> None:
         }
     )
     print(f"Observation recorded for step {state.current_step}: {observation}")
+
+def add_tasks(state: AgentState, current_task: str):
+    if current_task == "" or current_task is None:
+        raise ValueError("current_task cannot be empty")
+    state.tasks.append({
+        "task": current_task,
+        "state": "pending"
+    })
+    return state
+
+def complete_task(agent_state: AgentState, current_task: str):
+    for pending_marked_task in agent_state.tasks:
+        if current_task == pending_marked_task["task"] and pending_marked_task["state"] == "pending":
+            pending_marked_task["state"] = "completed"
+    return agent_state
+    
+def get_pending_tasks(agent_state: AgentState) -> list[str]:
+    return [task["task"] for task in agent_state.tasks if task["state"]=="pending"]
+
+def all_tasks_completed(agent_state: AgentState) -> bool:
+    return all(
+        [task["state"]=="completed" for task in agent_state["tasks"] ]
+    )
+
+def add_intermediate_result(agent_state: AgentState, result: str):
+    return agent_state.results.append(result)
 
 
 def finish_agent_state(state: AgentState, final_answer: str) -> None:

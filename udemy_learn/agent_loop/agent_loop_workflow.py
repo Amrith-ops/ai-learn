@@ -8,7 +8,7 @@ from google.genai import Client
 from mcp.types import Tool
 
 from udemy_learn.agent_loop.planner import fetch_next_action_recommendation_planner
-from udemy_learn.agent_loop.state import (
+from udemy_learn.utils.state import (
     AgentState,
     create_agent_state,
     finish_agent_state,

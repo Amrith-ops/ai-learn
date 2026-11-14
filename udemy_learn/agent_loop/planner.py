@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from google.genai import Client
 from mcp.types import Tool
 
-from udemy_learn.agent_loop.state import AgentState
+from udemy_learn.utils.state import AgentState
 from udemy_learn.assistant import generate_assistant_reply
 from udemy_learn.utils.list_of_tools_prompt import build_tool_descriptions
 
