@@ -3,52 +3,107 @@ from unittest.mock import patch
 
 from udemy_learn.advanced_agent.task_decomposition import (
     fetch_task_list_from_td_agent,
-    parse_fetched_task_list,
+    parse_task_decomposition_response,
+    task_decomposition_prompt,
 )
+from udemy_learn.utils.state import AgentState
 
 
 class TaskDecompositionTests(unittest.TestCase):
-    def test_parses_valid_task_list(self) -> None:
-        result = parse_fetched_task_list(
-            '[{"task": "Get the weather for Paris", "state": "pending"}]'
+    def test_prompt_includes_relevant_memory_and_finish_rules(self) -> None:
+        state = AgentState(
+            user_input="What did I ask about SQLite?",
+            memory=[
+                {
+                    "user_request": "How does SQLite connect to a file?",
+                    "assistant_response": "sqlite3.connect opens or creates the file.",
+                    "score": 0.9,
+                    "created_at": "2026-11-14 12:00:00",
+                }
+            ],
+        )
+
+        prompt = task_decomposition_prompt(state.user_input, state)
+
+        self.assertIn("How does SQLite connect to a file?", prompt)
+        self.assertIn("sqlite3.connect opens or creates the file.", prompt)
+        self.assertIn('{"decision": "Finish"', prompt)
+        self.assertIn("Create at least two tasks", prompt)
+
+    def test_parses_finish_response_without_tasks(self) -> None:
+        result = parse_task_decomposition_response(
+            '{"decision":"Finish","answer":"SQLite opens the database file.",'
+            '"tasks":[]}'
         )
 
         self.assertEqual(
             result,
-            [{"task": "Get the weather for Paris", "state": "pending"}],
+            {
+                "decision": "Finish",
+                "answer": "SQLite opens the database file.",
+                "tasks": [],
+            },
         )
 
-    def test_rejects_task_with_unexpected_shape(self) -> None:
-        with self.assertRaisesRegex(ValueError, "exactly the keys"):
-            parse_fetched_task_list(
-                '[{"task": "Get the weather", "state": "pending", "extra": true}]'
+    def test_parses_multi_task_response(self) -> None:
+        result = parse_task_decomposition_response(
+            '{"decision":"CreateTasks","answer":"","tasks":['
+            '{"task":"Get the weather for Paris","state":"pending"},'
+            '{"task":"Get the weather for Rome","state":"pending"}]}'
+        )
+
+        self.assertEqual(result["decision"], "CreateTasks")
+        self.assertEqual(len(result["tasks"]), 2)
+
+    def test_rejects_create_tasks_response_with_only_one_task(self) -> None:
+        with self.assertRaisesRegex(ValueError, "at least two tasks"):
+            parse_task_decomposition_response(
+                '{"decision":"CreateTasks","answer":"","tasks":['
+                '{"task":"Get the weather","state":"pending"}]}'
             )
 
-    def test_rejects_non_pending_state(self) -> None:
-        with self.assertRaisesRegex(ValueError, "state 'pending'"):
-            parse_fetched_task_list(
-                '[{"task": "Get the weather", "state": "complete"}]'
+    def test_rejects_finish_response_with_tasks(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must not include tasks"):
+            parse_task_decomposition_response(
+                '{"decision":"Finish","answer":"Hello","tasks":['
+                '{"task":"Greet the user","state":"pending"}]}'
             )
 
 
 class FetchTaskListTests(unittest.IsolatedAsyncioTestCase):
-    async def test_fetches_reply_in_a_thread_and_parses_it(self) -> None:
-        response = '[{"task": "Get the weather for Paris", "state": "pending"}]'
+    async def test_passes_memory_in_prompt_and_parses_reply(self) -> None:
+        response = (
+            '{"decision":"Finish","answer":"SQLite opens or creates the file.",'
+            '"tasks":[]}'
+        )
+        state = AgentState(
+            user_input="What did I ask about SQLite?",
+            memory=[
+                {
+                    "user_request": "How does SQLite connect to a file?",
+                    "assistant_response": "sqlite3.connect opens or creates the file.",
+                    "score": 0.9,
+                    "created_at": "2026-11-14 12:00:00",
+                }
+            ],
+        )
         with patch(
             "udemy_learn.advanced_agent.task_decomposition.generate_assistant_reply",
             return_value=response,
         ) as generate_reply:
             result = await fetch_task_list_from_td_agent(
-                object(), "test-model", "Get the weather for Paris"
+                object(),
+                "test-model",
+                state.user_input,
+                state,
             )
 
-        self.assertEqual(
-            result,
-            [{"task": "Get the weather for Paris", "state": "pending"}],
-        )
+        self.assertEqual(result["decision"], "Finish")
+        sent_prompt = generate_reply.call_args.kwargs["messages"][0]["content"]
+        self.assertIn("sqlite3.connect opens or creates the file.", sent_prompt)
         self.assertEqual(
             generate_reply.call_args.kwargs["system_instruction"],
-            "You are task decomposition agent",
+            "You route direct-answer requests or decompose actionable requests.",
         )
 
 

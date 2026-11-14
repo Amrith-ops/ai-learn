@@ -16,7 +16,7 @@ from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
 from udemy_learn.planner.llm_tool_workflow import run_llm_tool_workflow
 from udemy_learn.mcp_client.mcp_workflow import run_mcp_workflow
 from udemy_learn.request_classifier import classify_request
-
+from udemy_learn.sql_persistence.sqllitedb import initialize_db
 
 async def run_conversation(
     client: genai.Client,
@@ -139,6 +139,7 @@ async def run_conversation(
 async def main() -> None:
     """Load runtime configuration and start the terminal conversation."""
     settings = load_config_env()
+    initialize_db()
     if not settings.api_key:
         raise RuntimeError("Set GEMINI_API_KEY in your environment or .env file.")
 

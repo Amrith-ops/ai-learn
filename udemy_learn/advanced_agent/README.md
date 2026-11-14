@@ -46,18 +46,49 @@ and applies the resulting state changes.
 | `AgentState` field | LLM responsibility | Python responsibility |
 | --- | --- | --- |
 | `user_input` | Uses the request as context. | Receives the user's request and initializes the state with it. |
-| `tasks` | The task decomposer proposes task descriptions. The planner reports a selected task as `completed` or `failed` when warranted by the evidence. | Validates and stores the initial tasks as `pending`; checks planner decisions and applies the reported status. |
+| `memory` | Uses relevant prior requests and responses as supporting context. | Stores up to three similar database records before task decomposition. |
+| `tasks` | The task decomposer proposes task descriptions only when a request needs multiple actionable outcomes. | Validates and stores tasks as `pending`; a direct-answer decision finishes without creating tasks or entering the planner loop. |
 | `current_task` | Selects which pending task to work on. | Copies the selected task from the validated planner response into the state. |
 | `actions` | Selects the next tool and arguments. | Executes the selected tool call and records its action string. |
 | `observations` | Uses prior observations when choosing what to do next. | Records the parsed tool result, or the final execution error after retries. |
 | `results` | Provides a reason when it reports a task completed or failed. | Appends tool observations and task-status reasons. Tool observations are currently also stored in `observations`. |
 | `current_step` | — | Increments before each planned tool action. Internal retries do not each create a separate step. |
 | `max_steps` | — | Sets the step limit when creating the state. |
-| `finished`, `final_answer` | The answer agent generates a natural-language response from the completed state. | Stores that response in `final_answer` and marks the run `finished`. |
+| `finished`, `final_answer` | The task decomposer answers directly when no task loop is needed; otherwise the answer agent responds after tool execution. | Stores the answer in `final_answer` and marks the run `finished`. |
 
 In short, task completion is an LLM judgment based on the recorded evidence;
 Python validates and records that judgment but does not independently verify
 the task's outcome.
+
+## Planned capabilities
+
+The database bootstrap and record helpers are implemented. The advanced agent
+loads up to three semantically similar records into `AgentState.memory` and
+includes them in the task-decomposition prompt. Automatically saving each
+conversation turn and using retrieved memory in other request paths remain
+planned.
+
+### Persistent conversation memory
+
+- Automatically save conversation turns and generate/store their embeddings
+  across application runs in a local SQLite store.
+- Use retrieved relevant context in other LLM prompts, not only task
+  decomposition, rather than relying only on in-memory conversation history.
+- Treat retrieved memories as supporting context: prefer the current request
+  and current tool observations when they conflict with older information.
+
+### Route requests that do not need tools
+
+Add a routing decision before task decomposition:
+
+| Request kind | Intended route |
+| --- | --- |
+| Greeting, conversational question, or general-knowledge request answerable without tools | Answer directly using the current conversation and relevant retrieved memories. Skip task decomposition, planner calls, and MCP tool discovery. |
+| Request needing one or more external actions | Discover available tools and use the appropriate single-step or advanced agent workflow. |
+
+The router should select the direct-answer route when no tool is needed. The
+task decomposer and planner should only run for requests that require actions;
+the planner must select from discovered tools and must not invent tool names.
 
 ## Why decompose a request into tasks?
 

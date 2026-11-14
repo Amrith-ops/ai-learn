@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from google.genai import Client
@@ -21,7 +22,9 @@ from udemy_learn.utils.state import (
     update_action_taken,
     update_current_step,
     update_observations,
+    add_memory_from_db,
 )
+from udemy_learn.sql_persistence.sqllitedb import pick_high_similar_records,save_new_responses  
 
 TASK_SEPARATOR = "=" * 72
 
@@ -31,10 +34,32 @@ async def run_advanced_agent_loop(
     client: Client,
     model: str,
 ) -> AgentState:
-    """Plan and execute tool actions until every task is completed or failed."""
-    # fetch task list from task decomposition agent
-    task_list = await fetch_task_list_from_td_agent(client, model, user_input)
+    """Answer directly when possible; otherwise run the task and tool workflow."""
     agent_state = create_agent_state(user_input, max_steps=5)
+    fetched_records_db = await asyncio.to_thread(
+        pick_high_similar_records,
+        user_input,
+    )
+    add_memory_from_db(fetched_records_db, agent_state)
+
+    decomposition = await fetch_task_list_from_td_agent(
+        client,
+        model,
+        user_input,
+        agent_state,
+    )
+    if decomposition["decision"] == "Finish":
+        finish_agent_state(agent_state, decomposition["answer"])
+        print(
+            f"\n{TASK_SEPARATOR}\n"
+            "REQUEST ANSWERED WITHOUT TASKS OR TOOL CALLS\n"
+            f"{TASK_SEPARATOR}"
+        )
+        await save_new_responses(user_input,decomposition["answer"])
+        return agent_state
+
+    task_list = decomposition["tasks"]
+
     agent_state.tasks.extend(task_list)
     print(f"\n{TASK_SEPARATOR}\nTASKS CREATED")
     if task_list:
@@ -63,13 +88,13 @@ async def run_advanced_agent_loop(
                 print(f"\n{TASK_SEPARATOR}\nCURRENT TASK: {task}\n{TASK_SEPARATOR}")
                 logged_task = task
             """
-            Planner agent based on the evidence from observations, it 
-            updates whether the given task is completed or not
-            So planner agent is using observations to decide whether a task is
-            completed or not.
-            Planner agent is also using tasks sections to decide which next
-            only one pending task it need to respond and what tool is appropriate
-            for it
+                Planner agent based on the evidence from observations, it 
+                updates whether the given task is completed or not
+                So planner agent is using observations to decide whether a task is
+                completed or not.
+                Planner agent is also using tasks sections to decide which next
+                only one pending task it need to respond and what tool is appropriate
+                for it
             """
             if decision["task_state"] in {"completed", "failed"}:
                 for task_item in agent_state.tasks:
@@ -128,6 +153,7 @@ async def run_advanced_agent_loop(
             agent_state.results.append(observation)
 
     final_answer = await answer_agent(client, model, agent_state)
+    await save_new_responses(user_input,final_answer)
     finish_agent_state(agent_state, final_answer)
     print(f"\n{TASK_SEPARATOR}\nADVANCED AGENT WORKFLOW COMPLETE\n{TASK_SEPARATOR}")
     return agent_state

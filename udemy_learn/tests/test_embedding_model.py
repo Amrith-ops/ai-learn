@@ -4,7 +4,7 @@ import unittest
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from udemy_learn.rag.embeddings import get_embedding_model_response
+from udemy_learn.sql_persistence.embeddings import get_embedding_model_response
 
 
 class EmbeddingModelTests(unittest.TestCase):

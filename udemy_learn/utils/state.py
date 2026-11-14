@@ -14,6 +14,7 @@ class AgentState:
     observations: list[dict[str, str | int]] = field(default_factory=list)
     tasks: list[dict[str, str]] = field(default_factory=list)
     current_task: str = ""
+    memory: list[dict[str, str | float | None]] = field(default_factory=list)
     results: list[str] = field(default_factory=list)
     finished: bool = False
     final_answer: str | None = None
@@ -27,6 +28,12 @@ class AgentState:
             raise ValueError("current_step must be between zero and max_steps.")
         print(f"Agent state initialized for request: {self.user_input}")
 
+def add_memory_from_db(
+    fetched_record_list: list[dict[str, str | float | None]],
+    agent_state: AgentState,
+) -> AgentState:
+    agent_state.memory.extend(fetched_record_list)
+    return agent_state
 
 def create_agent_state(user_input: str, max_steps: int = 5) -> AgentState:
     """Create fresh state for a user request."""

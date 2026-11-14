@@ -131,6 +131,13 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
                 "task_state": "failed",
                 "reason": "Tool failed after three attempts.",
             },
+            {
+                "task": "Compare the forecast",
+                "tool_name": None,
+                "arguments": {},
+                "task_state": "failed",
+                "reason": "The weather task did not produce forecast data.",
+            },
         ]
         with (
             patch(
@@ -138,11 +145,20 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
                 fake_connect,
             ),
             patch(
+                "udemy_learn.advanced_agent.loop.pick_high_similar_records",
+                return_value=[],
+            ),
+            patch(
                 "udemy_learn.advanced_agent.loop.fetch_task_list_from_td_agent",
                 new_callable=AsyncMock,
-                return_value=[
-                    {"task": "Get the weather", "state": "pending"}
-                ],
+                return_value={
+                    "decision": "CreateTasks",
+                    "answer": "",
+                    "tasks": [
+                        {"task": "Get the weather", "state": "pending"},
+                        {"task": "Compare the forecast", "state": "pending"},
+                    ],
+                },
             ),
             patch(
                 "udemy_learn.advanced_agent.loop.tool_discovery",
@@ -177,10 +193,11 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
                 "test-model",
             )
 
-        self.assertEqual(planner.await_count, 2)
+        self.assertEqual(planner.await_count, 3)
         self.assertEqual(execute.await_count, 1)
         answer.assert_awaited_once()
         self.assertEqual(state.tasks[0]["state"], "failed")
+        self.assertEqual(state.tasks[1]["state"], "failed")
         self.assertTrue(state.finished)
         self.assertEqual(
             state.final_answer,
@@ -202,6 +219,56 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("TOOL RESPONSE for get_weather", logged_output)
         self.assertIn("failed after 3 attempts", logged_output)
         self.assertIn("=" * 72, logged_output)
+
+    async def test_finish_decision_skips_task_loop_and_tool_discovery(self) -> None:
+        from udemy_learn.advanced_agent.loop import run_advanced_agent_loop
+
+        memory = [
+            {
+                "user_request": "What is SQLite?",
+                "assistant_response": "SQLite is an embedded database.",
+                "score": 0.92,
+                "created_at": "2026-11-14 12:00:00",
+            }
+        ]
+        with (
+            patch(
+                "udemy_learn.advanced_agent.loop.pick_high_similar_records",
+                return_value=memory,
+            ),
+            patch(
+                "udemy_learn.advanced_agent.loop.fetch_task_list_from_td_agent",
+                new_callable=AsyncMock,
+                return_value={
+                    "decision": "Finish",
+                    "answer": "SQLite is an embedded database.",
+                    "tasks": [],
+                },
+            ),
+            patch("udemy_learn.advanced_agent.loop.connect") as connect,
+            patch(
+                "udemy_learn.advanced_agent.loop.tool_discovery",
+                new_callable=AsyncMock,
+            ) as discover_tools,
+            patch(
+                "udemy_learn.advanced_agent.loop.answer_agent",
+                new_callable=AsyncMock,
+            ) as answer,
+            patch("builtins.print"),
+        ):
+            state = await run_advanced_agent_loop(
+                "What is SQLite?",
+                object(),
+                "test-model",
+            )
+
+        self.assertTrue(state.finished)
+        self.assertEqual(state.final_answer, "SQLite is an embedded database.")
+        self.assertEqual(state.tasks, [])
+        self.assertEqual(state.memory, memory)
+        connect.assert_not_called()
+        discover_tools.assert_not_awaited()
+        answer.assert_not_awaited()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TypedDict
 
-from udemy_learn.rag.embeddings import get_embedding_model_response
+from udemy_learn.sql_persistence.embeddings import get_embedding_model_response
 
 
 class EmbeddedDocument(TypedDict):
