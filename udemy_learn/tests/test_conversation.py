@@ -232,7 +232,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(request["config"].system_instruction, "helpful")
 
-    async def test_multi_step_request_runs_agent_loop(self) -> None:
+    async def test_multi_step_request_runs_advanced_agent_loop(self) -> None:
         client = FakeClient()
         inputs = iter(["Get the time, then roll a die", "quit"])
         agent_state = SimpleNamespace(
@@ -268,7 +268,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
                 return_value="multi-step",
             ),
             patch(
-                "udemy_learn.conversation.agent_loop_run_workflow",
+                "udemy_learn.conversation.run_advanced_agent_loop",
                 new_callable=AsyncMock,
                 return_value=agent_state,
             ) as agent_loop,

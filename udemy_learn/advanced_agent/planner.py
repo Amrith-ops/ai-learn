@@ -71,6 +71,8 @@ def advanced_agent_planner_prompt(
     Return only one valid JSON object with exactly these keys:
     For a tool action:
     {{"task": "exact pending task text", "tool_name": "exact_tool_name", "arguments": {{}}, "task_state": "pending", "reason": ""}}
+    The reason for a pending tool action may be empty or briefly explain why
+    the action was chosen.
     For an achieved task, use "tool_name": null, "task_state": "completed", and
     put the evidence in "reason":
     {{"task": "exact pending task text", "tool_name": null, "arguments": {{}}, "task_state": "completed", "reason": "evidence"}}
@@ -108,10 +110,12 @@ def parse_planner_agent_response(
         raise ValueError("Planner response must be valid JSON.") from error
 
     required_keys = {"task", "tool_name", "arguments", "task_state", "reason"}
-    if not isinstance(decision, dict) or set(decision) != required_keys:
+    if not isinstance(decision, dict):
+        raise ValueError("Planner response must be a JSON object.")
+    missing_keys = required_keys.difference(decision)
+    if missing_keys:
         raise ValueError(
-            "Planner response must be an object with exactly "
-            "'task', 'tool_name', 'arguments', 'task_state', and 'reason'."
+            f"Planner response is missing required keys: {sorted(missing_keys)}."
         )
 
     task = decision["task"]
@@ -145,8 +149,6 @@ def parse_planner_agent_response(
     if task_state == "pending":
         if not isinstance(tool_name, str):
             raise ValueError("A pending task must select a tool.")
-        if reason.strip():
-            raise ValueError("A pending tool action must have an empty reason.")
         available_names = {tool.name for tool in tools}
         if tool_name not in available_names:
             raise ValueError(f"Planner selected an unknown tool: {tool_name!r}.")

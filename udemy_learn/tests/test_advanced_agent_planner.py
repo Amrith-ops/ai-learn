@@ -108,6 +108,22 @@ class PlannerAgentResponseParserTests(unittest.TestCase):
         self.assertEqual(decision["arguments"], {"city": "Paris"})
         self.assertEqual(decision["task_state"], "pending")
 
+    def test_accepts_a_rationale_for_a_pending_tool_action(self) -> None:
+        decision = self.parse(reason="Use the weather tool to retrieve conditions.")
+
+        self.assertEqual(
+            decision["reason"],
+            "Use the weather tool to retrieve conditions.",
+        )
+
+    def test_ignores_unrecognized_extra_fields(self) -> None:
+        decision = self.parse(confidence=0.9)
+
+        self.assertEqual(
+            set(decision),
+            {"task", "tool_name", "arguments", "task_state", "reason"},
+        )
+
     def test_parses_completed_and_failed_task_decisions(self) -> None:
         for task_state, reason in (
             ("completed", "Weather result is available."),
@@ -127,6 +143,13 @@ class PlannerAgentResponseParserTests(unittest.TestCase):
     def test_rejects_malformed_or_inconsistent_responses(self) -> None:
         with self.assertRaisesRegex(ValueError, "valid JSON"):
             parse_planner_agent_response("not json", self.tools, self.state)
+
+        with self.assertRaisesRegex(ValueError, "missing required keys"):
+            parse_planner_agent_response(
+                '{"task": "Get the weather"}',
+                self.tools,
+                self.state,
+            )
 
         with self.assertRaisesRegex(ValueError, "pending task must select a tool"):
             self.parse(tool_name=None)

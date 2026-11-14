@@ -3,7 +3,10 @@ from collections.abc import Callable
 
 from google import genai
 
-from udemy_learn.agent_loop.agent_loop_workflow import agent_loop_run_workflow
+# The basic loop is retained as a commented reference. The advanced loop also
+# handles decomposed task state, retry-aware observations, and final answering.
+# from udemy_learn.agent_loop.agent_loop_workflow import agent_loop_run_workflow
+from udemy_learn.advanced_agent.loop import run_advanced_agent_loop
 from udemy_learn.utils.assistant import generate_assistant_reply
 from udemy_learn.config.config import load_config_env
 from udemy_learn.manual_workflow_tool.manual_tool_orcheastrate import (
@@ -78,8 +81,17 @@ async def run_conversation(
             )
             messages.append({"role": "user", "content": user_input})
             if request_type == "multi-step":
-                output_fn("\nPython: Routing the conversation through the agent loop")
-                agent_state = await agent_loop_run_workflow(user_input, client, model)
+                # The basic agent_loop_run_workflow route is intentionally disabled:
+                # it does not run the advanced task-decomposition and answer-agent flow.
+                # agent_state = await agent_loop_run_workflow(user_input, client, model)
+                output_fn(
+                    "\nPython: Routing the conversation through the advanced agent loop"
+                )
+                agent_state = await run_advanced_agent_loop(
+                    user_input,
+                    client,
+                    model,
+                )
                 for observation in agent_state.observations:
                     messages.append(
                         {

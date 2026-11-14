@@ -2,6 +2,7 @@ import json
 
 from google.genai import Client
 
+from udemy_learn.advanced_agent.answer_agent import answer_agent
 from udemy_learn.advanced_agent.planner import planner_agent
 from udemy_learn.advanced_agent.task_decomposition import (
     fetch_task_list_from_td_agent,
@@ -15,11 +16,14 @@ from udemy_learn.mcp_client.client import connect
 from udemy_learn.utils.state import (
     AgentState,
     create_agent_state,
+    finish_agent_state,
     get_pending_tasks,
     update_action_taken,
     update_current_step,
     update_observations,
 )
+
+TASK_SEPARATOR = "=" * 72
 
 
 async def run_advanced_agent_loop(
@@ -32,9 +36,17 @@ async def run_advanced_agent_loop(
     task_list = await fetch_task_list_from_td_agent(client, model, user_input)
     agent_state = create_agent_state(user_input, max_steps=5)
     agent_state.tasks.extend(task_list)
+    print(f"\n{TASK_SEPARATOR}\nTASKS CREATED")
+    if task_list:
+        for index, task in enumerate(task_list, start=1):
+            print(f"{index}. [{task['state']}] {task['task']}")
+    else:
+        print("No tasks were created.")
+    print(TASK_SEPARATOR)
 
     async with connect() as mcp_session:
         tool_list = await tool_discovery(mcp_session)
+        logged_task: str | None = None
         while get_pending_tasks(agent_state):
             """based on pending task, observations, actions input given planner agent gives 
             which tool or action it thinks is suited to solve task
@@ -47,6 +59,9 @@ async def run_advanced_agent_loop(
             )
             task = decision["task"]
             agent_state.current_task = task
+            if task != logged_task:
+                print(f"\n{TASK_SEPARATOR}\nCURRENT TASK: {task}\n{TASK_SEPARATOR}")
+                logged_task = task
             """
             Planner agent based on the evidence from observations, it 
             updates whether the given task is completed or not
@@ -67,6 +82,10 @@ async def run_advanced_agent_loop(
                 agent_state.results.append(
                     f"{decision['task_state']}: {task} - {decision['reason']}"
                 )
+                print(
+                    f"TASK {decision['task_state'].upper()}: {task}\n"
+                    f"Reason: {decision['reason']}\n{TASK_SEPARATOR}"
+                )
                 continue
 
             tool_name = decision["tool_name"]
@@ -75,6 +94,7 @@ async def run_advanced_agent_loop(
 
             arguments = decision["arguments"]
             action = f"{tool_name}({json.dumps(arguments, sort_keys=True)})"
+            print(f"ACTION: {action}")
             update_current_step(agent_state)
             update_action_taken(agent_state, action)
 
@@ -103,7 +123,11 @@ async def run_advanced_agent_loop(
                     f"attempt 1; do not retry this call again. Error: {exc}"
                 )
 
+            print(f"TOOL RESPONSE for {action}:\n{observation}")
             update_observations(agent_state, action, observation)
             agent_state.results.append(observation)
 
+    final_answer = await answer_agent(client, model, agent_state)
+    finish_agent_state(agent_state, final_answer)
+    print(f"\n{TASK_SEPARATOR}\nADVANCED AGENT WORKFLOW COMPLETE\n{TASK_SEPARATOR}")
     return agent_state

@@ -53,7 +53,7 @@ and applies the resulting state changes.
 | `results` | Provides a reason when it reports a task completed or failed. | Appends tool observations and task-status reasons. Tool observations are currently also stored in `observations`. |
 | `current_step` | — | Increments before each planned tool action. Internal retries do not each create a separate step. |
 | `max_steps` | — | Sets the step limit when creating the state. |
-| `finished`, `final_answer` | No answer-agent decision is wired into the advanced loop yet. | Remain at their defaults in the current advanced loop. |
+| `finished`, `final_answer` | The answer agent generates a natural-language response from the completed state. | Stores that response in `final_answer` and marks the run `finished`. |
 
 In short, task completion is an LLM judgment based on the recorded evidence;
 Python validates and records that judgment but does not independently verify

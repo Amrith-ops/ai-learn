@@ -164,6 +164,12 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
                     retries_exhausted=True,
                 ),
             ) as execute,
+            patch(
+                "udemy_learn.advanced_agent.loop.answer_agent",
+                new_callable=AsyncMock,
+                return_value="The weather task could not be completed.",
+            ) as answer,
+            patch("builtins.print") as print_log,
         ):
             state = await run_advanced_agent_loop(
                 "Get the weather for Paris",
@@ -173,12 +179,29 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(planner.await_count, 2)
         self.assertEqual(execute.await_count, 1)
+        answer.assert_awaited_once()
         self.assertEqual(state.tasks[0]["state"], "failed")
+        self.assertTrue(state.finished)
+        self.assertEqual(
+            state.final_answer,
+            "The weather task could not be completed.",
+        )
         self.assertIn("3 attempts", state.observations[0]["observation"])
         self.assertIn(
             "do not retry this call again",
             state.observations[0]["observation"],
         )
+        logged_output = "\n".join(
+            str(call.args[0])
+            for call in print_log.call_args_list
+            if call.args
+        )
+        self.assertIn("TASKS CREATED", logged_output)
+        self.assertIn("CURRENT TASK: Get the weather", logged_output)
+        self.assertIn('ACTION: get_weather({"city": "Paris"})', logged_output)
+        self.assertIn("TOOL RESPONSE for get_weather", logged_output)
+        self.assertIn("failed after 3 attempts", logged_output)
+        self.assertIn("=" * 72, logged_output)
 
 
 if __name__ == "__main__":
