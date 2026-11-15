@@ -4,7 +4,7 @@ from typing import Literal, TypedDict
 
 from google.genai import Client
 
-from udemy_learn.utils.assistant import generate_assistant_reply
+from udemy_learn.utils.assistant import generate_assistant_json_reply
 from udemy_learn.utils.state import AgentState
 
 
@@ -55,7 +55,8 @@ case.
 Relevant memory records fetched from the database:
 {memory}
 
-Return only one valid JSON object with exactly these keys:
+Return only one valid JSON object with exactly these keys. Do not use markdown
+fences or add any text before or after the JSON object.
 - For a direct answer: "decision", "answer", and "tasks", with an empty task list:
   {{"decision": "Finish", "answer": "Direct answer to the user", "tasks": []}}
 - For a multi-task request: "decision", "answer", and "tasks", with an empty
@@ -75,7 +76,7 @@ async def fetch_task_list_from_td_agent(
 ) -> TaskDecompositionResult:
     user_prompt = task_decomposition_prompt(user_input, agent_state)
     response = await asyncio.to_thread(
-        generate_assistant_reply,
+        generate_assistant_json_reply,
         client,
         model,
         messages=[{"role": "user", "content": user_prompt}],
@@ -86,10 +87,29 @@ async def fetch_task_list_from_td_agent(
 
 def parse_task_decomposition_response(response: str) -> TaskDecompositionResult:
     """Parse and validate a direct-answer or task-decomposition response."""
+    response_text = response.strip()
     try:
-        parsed = json.loads(response)
+        parsed = json.loads(response_text)
     except json.JSONDecodeError as error:
-        raise ValueError("Task decomposition response must be valid JSON.") from error
+        decoder = json.JSONDecoder()
+        parsed = None
+        for index, character in enumerate(response_text):
+            if character != "{":
+                continue
+            try:
+                parsed, _ = decoder.raw_decode(response_text, index)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                break
+            parsed = None
+
+        if parsed is None:
+            response_preview = " ".join(response_text.split())[:300]
+            raise ValueError(
+                "Task decomposition response must contain a valid JSON object. "
+                f"Response preview: {response_preview!r}."
+            ) from error
 
     required_keys = {"decision", "answer", "tasks"}
     if not isinstance(parsed, dict) or set(parsed) != required_keys:

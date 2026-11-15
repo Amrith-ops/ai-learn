@@ -137,3 +137,28 @@ by assignment. The loop variable `task` and the list element refer to the same
 mutable dictionary object, so changing one of its values is visible through
 the list. Reassigning `task` itself, such as `task = { ... }`, would only bind
 the local variable to a different object and would not replace the list item.
+
+## Custom workflow code and framework equivalents
+
+The examples below use common LangGraph and LangChain concepts; exact APIs vary
+by framework and version. Frameworks provide reusable mechanisms, while the
+application still defines the policies and behavior.
+
+| Custom implementation in this project | Common framework equivalent | Decisions that remain application-specific |
+| --- | --- | --- |
+| Request classification and the `Finish` or `CreateTasks` response in the advanced task decomposer | Router node and conditional graph edges | Which requests need tools, when to finish, and how many tasks to create |
+| `AgentState` and the advanced execution loop | Graph state, nodes, transitions, and checkpointing | Which state to track, task lifecycle rules, and step limits |
+| JSON response mode and manual validation of decomposer and planner output | Structured output, JSON schema, and Pydantic validation | Required keys, valid task states, and domain-specific invariants |
+| MCP tool discovery, execution, result parsing, and retries | Tool adapters, MCP integrations, and retry policies | Tool permissions, retryable error types, attempt limits, and how failures affect tasks |
+| SQLite conversation records, embeddings, and similarity search | Checkpointers, vector stores, and retrievers | What to store, similarity thresholds, which records are relevant, and how memory affects answers |
+| Final answer generation and workflow logging | Final-response node, callbacks, and tracing integrations | Answer style, evidence requirements, and useful workflow events |
+
+These are equivalents, not automatic replacements. For example, a framework can
+retry a failed tool call, but the application must decide whether that error is
+transient and what to do when retries are exhausted.
+
+The advanced loop can return a direct answer without entering its planner/MCP
+loop. However, the current main conversation route still sends `single-step`
+requests to the LLM + MCP workflow, including requests classified as not
+needing a tool. A separate direct-answer route in the main conversation remains
+to be implemented.

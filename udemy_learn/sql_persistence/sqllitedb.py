@@ -49,8 +49,17 @@ def create_embedding_userreq_res(user_request:str, assistant_response:str):
 
 async def save_new_responses( user_request: str,
     assistant_response: str):
-    total_text_embedding = await asyncio.to_thread(create_embedding_userreq_res(user_request, assistant_response))
-    insert_conversation_db(user_request,assistant_response, json.dumps(total_text_embedding))
+    total_text_embedding = await asyncio.to_thread(
+        create_embedding_userreq_res,
+        user_request,
+        assistant_response,
+    )
+    await asyncio.to_thread(
+        insert_conversation_db,
+        user_request,
+        assistant_response,
+        json.dumps(total_text_embedding),
+    )
 
 def insert_conversation_db(
     user_request: str,

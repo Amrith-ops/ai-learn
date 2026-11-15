@@ -5,7 +5,7 @@ from google.genai import Client
 
 from udemy_learn.advanced_agent.answer_agent import answer_agent
 from udemy_learn.advanced_agent.planner import planner_agent
-from udemy_learn.advanced_agent.task_decomposition import (
+from udemy_learn.advanced_agent.task_decomposition_agent import (
     fetch_task_list_from_td_agent,
 )
 from udemy_learn.advanced_agent.tool_executor import (

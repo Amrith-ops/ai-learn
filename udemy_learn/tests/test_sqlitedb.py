@@ -139,5 +139,25 @@ class SQLiteDatabaseTests(unittest.TestCase):
         get_embedding.assert_not_called()
 
 
+class SaveConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_creates_embedding_and_inserts_without_blocking_event_loop(self) -> None:
+        with (
+            patch.object(
+                sqllitedb,
+                "create_embedding_userreq_res",
+                return_value=[0.1, 0.2],
+            ) as create_embedding,
+            patch.object(sqllitedb, "insert_conversation_db") as insert_record,
+        ):
+            await sqllitedb.save_new_responses("Question", "Answer")
+
+        create_embedding.assert_called_once_with("Question", "Answer")
+        insert_record.assert_called_once_with(
+            "Question",
+            "Answer",
+            json.dumps([0.1, 0.2]),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

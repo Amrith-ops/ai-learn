@@ -185,6 +185,10 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
                 new_callable=AsyncMock,
                 return_value="The weather task could not be completed.",
             ) as answer,
+            patch(
+                "udemy_learn.advanced_agent.loop.save_new_responses",
+                new_callable=AsyncMock,
+            ) as save_response,
             patch("builtins.print") as print_log,
         ):
             state = await run_advanced_agent_loop(
@@ -196,6 +200,10 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(planner.await_count, 3)
         self.assertEqual(execute.await_count, 1)
         answer.assert_awaited_once()
+        save_response.assert_awaited_once_with(
+            "Get the weather for Paris",
+            "The weather task could not be completed.",
+        )
         self.assertEqual(state.tasks[0]["state"], "failed")
         self.assertEqual(state.tasks[1]["state"], "failed")
         self.assertTrue(state.finished)
@@ -254,6 +262,10 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
                 "udemy_learn.advanced_agent.loop.answer_agent",
                 new_callable=AsyncMock,
             ) as answer,
+            patch(
+                "udemy_learn.advanced_agent.loop.save_new_responses",
+                new_callable=AsyncMock,
+            ) as save_response,
             patch("builtins.print"),
         ):
             state = await run_advanced_agent_loop(
@@ -266,6 +278,10 @@ class AdvancedAgentToolExecutorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state.final_answer, "SQLite is an embedded database.")
         self.assertEqual(state.tasks, [])
         self.assertEqual(state.memory, memory)
+        save_response.assert_awaited_once_with(
+            "What is SQLite?",
+            "SQLite is an embedded database.",
+        )
         connect.assert_not_called()
         discover_tools.assert_not_awaited()
         answer.assert_not_awaited()

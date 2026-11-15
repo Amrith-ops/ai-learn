@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from udemy_learn.advanced_agent.task_decomposition import (
+from udemy_learn.advanced_agent.task_decomposition_agent import (
     fetch_task_list_from_td_agent,
     parse_task_decomposition_response,
     task_decomposition_prompt,
@@ -44,6 +44,22 @@ class TaskDecompositionTests(unittest.TestCase):
                 "tasks": [],
             },
         )
+
+    def test_parses_json_object_inside_fence_and_surrounding_text(self) -> None:
+        result = parse_task_decomposition_response(
+            'Here is the result:\n```json\n'
+            '{"decision":"Finish","answer":"Hello.","tasks":[]}\n```'
+        )
+
+        self.assertEqual(result["decision"], "Finish")
+        self.assertEqual(result["answer"], "Hello.")
+
+    def test_invalid_json_error_includes_response_preview(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "Response preview: 'not valid json'",
+        ):
+            parse_task_decomposition_response("not valid json")
 
     def test_parses_multi_task_response(self) -> None:
         result = parse_task_decomposition_response(
@@ -88,7 +104,7 @@ class FetchTaskListTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         with patch(
-            "udemy_learn.advanced_agent.task_decomposition.generate_assistant_reply",
+            "udemy_learn.advanced_agent.task_decomposition.generate_assistant_json_reply",
             return_value=response,
         ) as generate_reply:
             result = await fetch_task_list_from_td_agent(
