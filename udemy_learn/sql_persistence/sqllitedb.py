@@ -2,7 +2,7 @@ import sqlite3
 import json
 import asyncio
 from pathlib import Path
-from udemy_learn.sql_persistence.embeddings import get_embedding_model_response
+from udemy_learn.utils.embeddings import get_embedding_model_response
 from udemy_learn.rag.retrieval_tools import calculate_cosine_similarity
 
 DB_PATH = (
